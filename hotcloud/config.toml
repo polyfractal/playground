@@ -1,0 +1,211 @@
+nodes = 30
+queries = 500
+metrics = 5
+hours = 600
+disruptions = 10
+threads = 8
+
+[regular_distribution]
+min_mean = 50
+max_mean = 100
+min_std = 1
+max_std = 2
+
+[disrupted_distribution]
+min_mean = 70
+max_mean = 120
+min_std = 2
+max_std = 5
+
+[es]
+bulk_size = 100000
+mapping = """
+{
+    \"settings\": {
+        \"refresh_interval\": \"30s\",
+        \"number_of_shards\": 1,
+        \"number_of_replicas\": 0,
+        \"index.translog.flush_threshold_size\": \"1gb\",
+        \"translog.flush_threshold_size\": \"1gb\",
+        \"index.store.throttle.type\": \"none\",
+        \"index.merge.scheduler.max_thread_count\": 1,
+        \"index.translog.interval\": \"30s\",
+        \"index.translog.sync_interval\": \"30s\",
+        \"index.translog.durability\": \"async\"
+    },
+    \"mappings\": {
+        \"data\": {
+            \"_all\": {
+                \"enabled\": false
+            },
+            \"_source\": {
+                \"enabled\": false
+            },
+            \"properties\": {
+                \"node\": {
+                    \"type\": \"short\",
+                    \"doc_values\": true,
+                    \"fielddata\": {
+                        \"format\": \"doc_values\"
+                    }
+                },
+                \"query\": {
+                    \"type\": \"short\",
+                    \"doc_values\": true,
+                    \"fielddata\": {
+                        \"format\": \"doc_values\"
+                    }
+                },
+                \"metric\": {
+                    \"type\": \"short\",
+                    \"doc_values\": true,
+                    \"fielddata\": {
+                        \"format\": \"doc_values\"
+                    }
+                },
+                \"hour\": {
+                    \"type\": \"date\",
+                    \"doc_values\": true,
+                    \"fielddata\": {
+                        \"format\": \"doc_values\"
+                    }
+                },
+                \"value\": {
+                    \"type\": \"float\",
+                    \"doc_values\": true,
+                    \"fielddata\": {
+                        \"format\": \"doc_values\"
+                    }
+                },
+                \"disruption\": {
+                    \"type\": \"short\",
+                    \"doc_values\": true,
+                    \"fielddata\": {
+                        \"format\": \"doc_values\"
+                    }
+                }
+            }
+        }
+    }
+}
+"""
+
+hotcloudmapping = """
+{
+    \"settings\": {
+        \"refresh_interval\": \"30s\",
+        \"number_of_shards\": 1,
+        \"number_of_replicas\": 0,
+        \"index.translog.flush_threshold_size\": \"1gb\",
+        \"translog.flush_threshold_size\": \"1gb\"
+    },
+    \"mappings\": {
+        \"data\": {
+            \"_all\": {
+                \"enabled\": false
+            },
+            \"properties\": {
+                \"metric\": {
+                    \"type\": \"long\",
+                    \"doc_values\": true,
+                    \"fielddata\": {
+                        \"format\": \"doc_values\"
+                    }
+                },
+                \"hour\": {
+                    \"type\": \"date\",
+                    \"doc_values\": true,
+                    \"fielddata\": {
+                        \"format\": \"doc_values\"
+                    }
+                },
+                \"value\": {
+                    \"type\": \"float\",
+                    \"doc_values\": true,
+                    \"fielddata\": {
+                        \"format\": \"doc_values\"
+                    }
+                }
+            }
+        }
+    }
+}
+"""
+
+query = """
+{
+  \"template\": {
+     \"query\": {
+        \"filtered\": {
+           \"filter\": {
+              \"range\": {
+                 \"hour\": {
+                    \"gte\": \"{{start}}\",
+                    \"lte\": \"{{end}}\"
+                 }
+              }
+           }
+        }
+     },
+     \"size\": 0,
+     \"aggs\": {
+        \"metrics\": {
+           \"terms\": {
+              \"field\": \"metric\"
+           },
+           \"aggs\": {
+              \"queries\": {
+                 \"terms\": {
+                    \"field\": \"query\"
+                 },
+                 \"aggs\": {
+                    \"series\": {
+                       \"date_histogram\": {
+                          \"field\": \"hour\",
+                          \"interval\": \"hour\"
+                       },
+                       \"aggs\": {
+                          \"avg\": {
+                             \"avg\": {
+                                \"field\": \"value\"
+                             }
+                          },
+                          \"movavg\": {
+                             \"moving_avg\": {
+                                \"buckets_path\": \"avg\",
+                                \"window\": 24,
+                                \"model\": \"simple\"
+                             }
+                          },
+                          \"surprise\": {
+                             \"bucket_script\": {
+                                \"buckets_path\": {
+                                   \"avg\": \"avg\",
+                                   \"movavg\": \"movavg\"
+                                },
+                                \"script\": \"(avg - movavg).abs()\"
+                             }
+                          }
+                       }
+                    },
+                    \"largest_surprise\": {
+                       \"max_bucket\": {
+                          \"buckets_path\": \"series.surprise\"
+                       }
+                    }
+                 }
+              },
+              \"ninetieth_surprise\": {
+                 \"percentiles_bucket\": {
+                    \"buckets_path\": \"queries>largest_surprise\",
+                    \"percents\": [
+                       90.0
+                    ]
+                 }
+              }
+           }
+        }
+     }
+  }
+}
+"""
