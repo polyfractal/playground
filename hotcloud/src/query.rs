@@ -165,7 +165,6 @@ struct HotcloudResult {
     value: f64
 }
 
-
 // Run the query portion of Atlas, to pre-cache the values (which simplifies the demo)
 pub fn run_hotcloud(client: &Arc<Client>, config: Config) {
     let config = Arc::new(config);

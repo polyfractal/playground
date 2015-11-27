@@ -2,7 +2,7 @@
 use config::Config;
 use std::sync::mpsc::{sync_channel, Receiver};
 use std::thread;
-use rand::distributions::{Normal, IndependentSample};
+use rand::distributions::{LogNormal, Normal, IndependentSample};
 use rand::{thread_rng, ThreadRng, Rng};
 use std::collections::HashMap;
 use hyper::Client;
@@ -96,7 +96,7 @@ pub fn generate_timeline(client: &Arc<Client>, config: &Config, json: bool) {
                         false => (rx.recv().unwrap() * d.0.std as f64) + d.0.mean as f64
                     };
 
-                    let timestamp = UTC.ymd(2015, 10, 20).and_hms(0, 0, 0) + Duration::hours(hour as i64);
+                    let timestamp = UTC.ymd(2015, 1, 1).and_hms(0, 0, 0) + Duration::hours(hour as i64);
 
                     bulk.push(TupleResult {
                         node: node,
@@ -191,7 +191,6 @@ fn generate_disruptions(config: &Config, rng: &mut ThreadRng) -> HashMap<usize, 
     debug!("Generating disruptions...");
     let mut disruptions = HashMap::with_capacity(config.disruptions);
     for _ in 0..config.disruptions {
-
         // Disruptions start after the 48th hour, and can last 2-24 hours long
         let (start, length) = (rng.gen_range(48, config.hours - 24), rng.gen_range(2, 24));
         let disruption = match rng.gen_range(1,4) {
@@ -231,7 +230,7 @@ fn generate_disruptions(config: &Config, rng: &mut ThreadRng) -> HashMap<usize, 
 // Generate the distributions for each (node, query, metric) tuple
 fn generate_distributions(config: &Config, rng: &mut ThreadRng)
                             -> HashMap<(usize, usize, usize), (NormalParams, NormalParams)> {
-
+    // Generate the distributions for each (node, query, metric) tuple
     debug!("generating distributions per (node,query,metric) tuple...");
     let mut distributions = HashMap::with_capacity(config.nodes * config.queries * config.metrics);
     for node in 0..config.nodes {
