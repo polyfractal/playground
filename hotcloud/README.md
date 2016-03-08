@@ -7,12 +7,20 @@ build the project with cargo, then run it (prepending `RUST_LOG` if you wish to 
 during execution)
 
 ```
+# Git must be installed before you start
+
 $ curl -sf https://raw.githubusercontent.com/brson/multirust/master/blastoff.sh | sh
 ... multirust installation ...
 
 $ git clone https://github.com/polyfractal/playground/
 $ cd playground/hotcloud
 $ multirust override nightly
+#------ In ubuntu in ec2 add the following ----
+$ sudo apt-get install gcc
+$ sudo apt-get install libssl-dev
+# check details at https://github.com/sfackler/rust-openssl
+
+#----- Ubuntu Addition ended ---- 
 $ cargo build
 $ RUST_LOG=hotcloud=DEBUG cargo run
 ```
